@@ -6,6 +6,8 @@ import { apiRequest } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/utils';
 
 export default function ApiKeysPage() {
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState('');
   const [keys, setKeys] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [keyName, setKeyName] = useState('');
@@ -15,7 +17,7 @@ export default function ApiKeysPage() {
     try {
       const data = await apiRequest<any[]>('/api/api-keys');
       setKeys(data);
-    } catch {}
+    } catch (err: any) { setFeedback(err.message); }
   };
 
   useEffect(() => {
@@ -24,17 +26,32 @@ export default function ApiKeysPage() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
       const res = await apiRequest<any>('/api/api-keys', {
         method: 'POST',
         body: JSON.stringify({ name: keyName }),
       });
       setGeneratedKey(res.apiKey);
+      setShowModal(false);
       setKeyName('');
       fetchKeys();
     } catch (err: any) {
-      alert(err.message);
-    }
+      setFeedback(err.message);
+    } finally { setBusy(false); }
+  };
+
+  const changeKey = async (id: string, replace: boolean) => {
+    if (!confirm(replace ? 'Replace this secret? The old secret will stop working immediately.' : 'Delete this key? Integrations using it will stop working.')) return;
+    setBusy(true);
+    try {
+      const result = await apiRequest<{ apiKey?: string }>(`/api/api-keys/${id}${replace ? '/rotate' : ''}`, { method: replace ? 'POST' : 'DELETE' });
+      setGeneratedKey(result.apiKey || null);
+      setFeedback(replace ? 'Secret replaced. Copy the new value below.' : 'Key deleted.');
+      await fetchKeys();
+    } catch (err: any) { setFeedback(err.message); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -49,6 +66,7 @@ export default function ApiKeysPage() {
 
         <button
           onClick={() => {
+            setFeedback('');
             setShowModal(true);
             setGeneratedKey(null);
           }}
@@ -59,6 +77,8 @@ export default function ApiKeysPage() {
         </button>
       </div>
 
+      <p className="text-sm text-slate-600">Secrets are shown once at creation. If you lost a secret, use Replace secret and update your integration.</p>
+      {feedback && <p role="status" className="p-3 bg-slate-100 rounded-xl">{feedback}</p>}
       {/* Generated Key Alert */}
       {generatedKey && (
         <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
@@ -73,11 +93,12 @@ export default function ApiKeysPage() {
             <input
               type="text"
               readOnly
+              aria-label="New API key secret"
               value={generatedKey}
               className="flex-1 p-2.5 font-mono text-xs rounded-xl border border-emerald-300 bg-white text-slate-900 font-bold"
             />
             <button
-              onClick={() => navigator.clipboard.writeText(generatedKey)}
+              onClick={async () => { try { await navigator.clipboard.writeText(generatedKey); setFeedback('Copied.'); } catch { setFeedback('Copy unavailable. Select and copy the secret manually.'); } }}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             >
               <Copy className="w-3.5 h-3.5" />
@@ -96,13 +117,13 @@ export default function ApiKeysPage() {
               <th className="p-4">Prefix</th>
               <th className="p-4">Scopes</th>
               <th className="p-4">Last Used</th>
-              <th className="p-4">Created Date</th>
+              <th className="p-4">Created Date</th><th className="p-4">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 font-medium">
             {keys.length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-slate-400">
+                <td colSpan={6} className="p-8 text-center text-slate-400">
                   No API keys registered.
                 </td>
               </tr>
@@ -118,6 +139,10 @@ export default function ApiKeysPage() {
                   </td>
                   <td className="p-4 text-slate-500">{k.lastUsedAt ? formatDateTime(k.lastUsedAt) : 'Never'}</td>
                   <td className="p-4 text-slate-500">{formatDateTime(k.createdAt)}</td>
+                  <td className="p-4 space-y-2">
+                    <button disabled={busy || k.isRevoked} onClick={() => changeKey(k.id, true)} className="block text-emerald-700 disabled:opacity-50">Replace secret</button>
+                    <button disabled={busy} onClick={() => changeKey(k.id, false)} className="block text-rose-700 disabled:opacity-50">Delete</button>
+                  </td>
                 </tr>
               ))
             )}
@@ -151,8 +176,9 @@ export default function ApiKeysPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full shadow-lg">
+          <div role="dialog" aria-modal="true" aria-label="Generate API key" className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full shadow-lg">
             <h3 className="text-base font-bold text-slate-900 mb-4">Generate Scoped API Key</h3>
+            {feedback && <p role="alert" className="text-sm text-rose-700 mb-3">{feedback}</p>}
             <form onSubmit={handleGenerate} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Key Name / Description</label>
@@ -176,6 +202,7 @@ export default function ApiKeysPage() {
                 </button>
                 <button
                   type="submit"
+                  disabled={busy}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
                 >
                   Create Key

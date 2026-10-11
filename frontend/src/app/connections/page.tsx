@@ -34,6 +34,7 @@ export default function ConnectionsPage() {
 
   useEffect(() => {
     fetchStatus();
+    const poll = setInterval(fetchStatus, 5000);
 
     let es: EventSource | null = null;
     try {
@@ -51,6 +52,7 @@ export default function ConnectionsPage() {
     } catch {}
 
     return () => {
+      clearInterval(poll);
       es?.close();
     };
   }, []);

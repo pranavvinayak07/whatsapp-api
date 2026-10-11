@@ -1,110 +1,58 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { apiRequest } from '@/lib/api-client';
 
-import React, { useState } from 'react';
-import { Users2, Send, MessageSquare } from 'lucide-react';
-
-const MOCK_GROUPS = [
-  { id: '1', name: 'Vivegaa Staff Common Room', jid: '120363028371829@g.us', members: 42, type: 'Staff' },
-  { id: '2', name: 'Class X-A Parent Advisory', jid: '120363028371999@g.us', members: 38, type: 'Parents' },
-  { id: '3', name: 'School Transport & Bus Drivers', jid: '120363028371555@g.us', members: 16, type: 'Transport' },
-];
-
+type Group = { id: string; name: string; members: number; canSend: boolean };
 export default function GroupsPage() {
-  const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedId, setSelectedId] = useState('');
   const [text, setText] = useState('');
-  const [sentMsg, setSentMsg] = useState(false);
-
-  const handleSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text.trim() || !selectedGroup) return;
-    setSentMsg(true);
-    setTimeout(() => {
-      setSentMsg(false);
-      setText('');
-    }, 2500);
-  };
-
-  return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center justify-between shadow-xs">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">WhatsApp Groups Hub</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Broadcast messages and announcements to official school staff and class parent groups.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left: Groups List */}
-        <div className="space-y-3">
-          {MOCK_GROUPS.map((g) => {
-            const isSelected = selectedGroup?.id === g.id;
-            return (
-              <div
-                key={g.id}
-                onClick={() => setSelectedGroup(g)}
-                className={`p-5 rounded-2xl border cursor-pointer transition ${
-                  isSelected
-                    ? 'bg-emerald-50/60 border-emerald-500 shadow-xs'
-                    : 'bg-white border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900">{g.name}</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                    {g.type}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                  <span className="font-mono">{g.jid}</span>
-                  <span>{g.members} participants</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Right: Message Dispatcher */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 mb-2">
-              Broadcast to {selectedGroup ? selectedGroup.name : 'Selected Group'}
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              {selectedGroup
-                ? `Will be transmitted to all ${selectedGroup.members} participants simultaneously.`
-                : 'Please select a WhatsApp group from the left panel.'}
-            </p>
-
-            {sentMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold mb-4">
-                Message successfully broadcast to group!
-              </div>
-            )}
-
-            <form onSubmit={handleSend} className="space-y-4">
-              <textarea
-                rows={6}
-                disabled={!selectedGroup}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Type your official group notification here..."
-                className="w-full p-4 rounded-xl border border-slate-200 text-xs disabled:bg-slate-50"
-              />
-
-              <button
-                type="submit"
-                disabled={!selectedGroup || !text.trim()}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                <span>Send Group Announcement</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const selected = groups.find(group => group.id === selectedId);
+  async function loadGroups() {
+    setLoading(true); setError('');
+    try { setGroups(await apiRequest<Group[]>('/api/groups')); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to load groups.'); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void loadGroups(); }, []);
+  async function send(event: React.FormEvent) {
+    event.preventDefault();
+    if (!selected || sending || !text.trim()) return;
+    const name = selected.name;
+    setSending(true); setError(''); setNotice('');
+    try {
+      const result = await apiRequest<{ warning?: string }>(`/api/groups/${encodeURIComponent(selected.id)}/messages`, {
+        method: 'POST', body: JSON.stringify({ text }),
+      });
+      setNotice(result.warning || `Message sent to ${name}.`); setText('');
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to send.'); }
+    finally { setSending(false); }
+  }
+  return <div className="max-w-5xl mx-auto space-y-6">
+    <div className="bg-white border rounded-2xl p-6 flex justify-between gap-4">
+      <div><h1 className="text-xl font-bold">WhatsApp Groups</h1><p className="text-sm text-slate-500 mt-2">Post a message inside a group that your connected WhatsApp account belongs to.</p></div>
+      <button disabled={loading || sending} onClick={loadGroups} className="text-emerald-700 disabled:opacity-50">Refresh groups</button>
     </div>
-  );
+    {error && <p role="alert" className="bg-rose-50 text-rose-800 p-4 rounded-xl">{error}</p>}
+    {notice && <p role="status" className="bg-emerald-50 text-emerald-800 p-4 rounded-xl">{notice}</p>}
+    <div className="grid md:grid-cols-2 gap-6">
+      <div className="space-y-3">
+        {loading ? <p role="status">Loading groups…</p> : groups.length === 0 && !error ? <p>No groups found. Join a group with the connected phone, then refresh.</p> : null}
+        {groups.map(group => <button key={group.id} disabled={sending} aria-pressed={selectedId === group.id} onClick={() => { setSelectedId(group.id); setNotice(''); }} className={`block w-full text-left border rounded-xl p-4 ${selectedId === group.id ? 'bg-emerald-50 border-emerald-500' : 'bg-white'}`}>
+          <span className="block font-semibold">{group.name}</span><span className="text-xs text-slate-500">{group.members} members{!group.canSend ? ' · Only group admins can post' : ''}</span>
+        </button>)}
+      </div>
+      <form onSubmit={send} className="bg-white rounded-2xl border p-6 space-y-4">
+        <h2 className="font-semibold">{selected ? `Message ${selected.name}` : 'Select a group'}</h2>
+        <label htmlFor="group-message" className="block text-sm">Group message</label>
+        <textarea id="group-message" required maxLength={10000} rows={7} disabled={!selected?.canSend || sending} value={text} onChange={event => setText(event.target.value)} className="w-full border rounded-xl p-3 disabled:bg-slate-50" />
+        <p className="text-xs text-slate-500">This posts one message in the selected group.</p>
+        <button disabled={!selected?.canSend || !text.trim() || sending || loading} className="w-full rounded-xl bg-emerald-600 text-white p-3 disabled:opacity-50">{sending ? 'Sending…' : 'Send to group'}</button>
+      </form>
+    </div>
+  </div>;
 }

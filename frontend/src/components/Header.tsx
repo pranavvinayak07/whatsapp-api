@@ -8,28 +8,28 @@ import { apiRequest } from '@/lib/api-client';
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const [status, setStatus] = useState<string>('CONNECTING');
+  const [status, setStatus] = useState<string>('CHECKING');
   const [phone, setPhone] = useState<string | null>(null);
 
   useEffect(() => {
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource('/api/events/sse');
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.type === 'status') {
-            setStatus(data.payload.status || 'DISCONNECTED');
-            if (data.payload.phoneNumber) setPhone(data.payload.phoneNumber);
-          }
-        } catch {}
-      };
-    } catch {}
-
-    return () => {
-      es?.close();
+    if (pathname === '/login') return;
+    let active = true;
+    let pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const data = await apiRequest<{ status: string; phoneNumber: string | null }>('/api/connection/summary', { cache: 'no-store' });
+        if (active) { setStatus(data.status); setPhone(data.phoneNumber); }
+      } catch {
+        if (active) { setStatus('STATUS UNAVAILABLE'); setPhone(null); }
+      } finally { pending = false; }
     };
-  }, []);
+    void refresh();
+    const timer = setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {

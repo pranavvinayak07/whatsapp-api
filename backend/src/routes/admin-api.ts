@@ -1,3 +1,4 @@
+import { groupService } from '../services/group-service.js';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -86,6 +87,22 @@ adminApiRouter.post('/connection/disconnect', requireRoles('SUPER_ADMIN', 'ADMIN
 adminApiRouter.post('/connection/logout', requireRoles('SUPER_ADMIN', 'ADMIN'), async (req: Request, res: Response) => {
   await whatsappConnection.logout();
   res.json({ message: 'Logged out and auth state cleared', status: whatsappConnection.getStatus() });
+});
+
+adminApiRouter.get('/connection/summary', (req: Request, res: Response) => {
+  const { status, phoneNumber } = whatsappConnection.getStatus();
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ status, phoneNumber: status === 'CONNECTED' ? phoneNumber : null });
+});
+
+adminApiRouter.get('/groups', requireRoles('SUPER_ADMIN', 'ADMIN', 'MESSAGING_STAFF'), async (req: Request, res: Response) => {
+  try { res.json(await groupService.list()); }
+  catch (err: any) { res.status(503).json({ error: err.message }); }
+});
+adminApiRouter.post('/groups/:id/messages', requireRoles('SUPER_ADMIN', 'ADMIN', 'MESSAGING_STAFF'), async (req: Request, res: Response) => {
+  if (typeof req.body.text !== 'string') return res.status(400).json({ error: 'Message text is required.' });
+  try { res.json(await groupService.send(req.params.id, req.body.text)); }
+  catch (err: any) { res.status(400).json({ error: err.message }); }
 });
 
 // ----------------------------------------------------
@@ -309,8 +326,14 @@ adminApiRouter.post('/users', requireRoles('SUPER_ADMIN'), async (req: Request, 
   }
 });
 
+adminApiRouter.use('/api-keys', (req: Request, res: Response, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 adminApiRouter.get('/api-keys', requireRoles('SUPER_ADMIN', 'ADMIN'), async (req: Request, res: Response) => {
   const keys = await db.apiKey.findMany({
+    select: { id: true, name: true, keyPrefix: true, scopes: true, isRevoked: true, lastUsedAt: true, createdAt: true, expiresAt: true },
     orderBy: { createdAt: 'desc' },
   });
   res.json(keys);
@@ -336,6 +359,25 @@ adminApiRouter.post('/api-keys', requireRoles('SUPER_ADMIN'), async (req: Authen
     name: created.name,
     message: 'Store this key safely now. It will not be shown again.',
   });
+});
+
+adminApiRouter.delete('/api-keys/:id', requireRoles('SUPER_ADMIN'), async (req: Request, res: Response) => {
+  try {
+    const result = await db.apiKey.deleteMany({ where: { id: req.params.id } });
+    if (!result.count) return res.status(404).json({ error: 'Key not found.' });
+    res.json({ success: true });
+  } catch { res.status(500).json({ error: 'Could not delete key.' }); }
+});
+adminApiRouter.post('/api-keys/:id/rotate', requireRoles('SUPER_ADMIN'), async (req: Request, res: Response) => {
+  try {
+    const { rawKey, keyPrefix, keyHash } = generateApiKey();
+    const result = await db.apiKey.updateMany({
+      where: { id: req.params.id, isRevoked: false },
+      data: { keyPrefix, keyHash, lastUsedAt: null },
+    });
+    if (!result.count) return res.status(404).json({ error: 'Active key not found.' });
+    res.json({ apiKey: rawKey });
+  } catch { res.status(500).json({ error: 'Could not replace key.' }); }
 });
 
 // ----------------------------------------------------
