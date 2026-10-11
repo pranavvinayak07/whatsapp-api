@@ -1,0 +1,479 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MESSAGING_STAFF
+  VIEWER
+}
+
+enum ConnectionStatus {
+  DISCONNECTED
+  CONNECTING
+  QR_REQUIRED
+  CONNECTED
+  RECONNECTING
+  ERROR
+}
+
+enum ContactType {
+  PARENT
+  TEACHER
+  STAFF
+  ADMIN
+  OTHER
+}
+
+enum ConsentStatus {
+  OPTED_IN
+  OPTED_OUT
+  PENDING
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  VIDEO
+  AUDIO
+  VOICE_NOTE
+  LOCATION
+  CONTACT
+  INTERACTIVE
+  BUTTON_REPLY
+  REACTION
+}
+
+enum MessageStatus {
+  PENDING
+  PROCESSING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  CANCELLED
+  UNKNOWN
+}
+
+enum TemplateCategory {
+  ATTENDANCE
+  FEES
+  HOMEWORK
+  EXAMINATIONS
+  TRANSPORT
+  ANNOUNCEMENTS
+  EVENTS
+  EMERGENCY
+  GENERAL
+}
+
+enum AutomationTriggerType {
+  ATTENDANCE_ABSENT
+  ATTENDANCE_LATE
+  FEE_REMINDER
+  FEE_RECEIPT
+  HOMEWORK_NOTIFICATION
+  EXAM_ANNOUNCEMENT
+  EXAM_RESULT
+  TRANSPORT_ALERT
+  BUS_DELAY
+  SCHOOL_ANNOUNCEMENT
+  EVENT_NOTIFICATION
+  GENERAL_NOTIFICATION
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole  @default(MESSAGING_STAFF)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  assignedConversations Conversation[] @relation("AssignedStaff")
+  createdTemplates      MessageTemplate[]
+  createdCampaigns      Campaign[]
+  auditLogs             AuditLog[]
+
+  @@map("users")
+}
+
+model WhatsAppConnection {
+  id                String           @id @default("default-connection")
+  name              String           @default("Primary School Line")
+  phoneNumber       String?
+  jid               String?
+  status            ConnectionStatus @default(DISCONNECTED)
+  qrCode            String?
+  lastConnectedAt   DateTime?
+  lastDisconnectedAt DateTime?
+  disconnectReason  String?
+  reconnectAttempts Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  metadata WhatsAppSessionMetadata[]
+
+  @@map("whatsapp_connections")
+}
+
+model WhatsAppSessionMetadata {
+  id           String             @id @default(cuid())
+  connectionId String
+  key          String
+  value        String
+  updatedAt    DateTime           @updatedAt
+  connection   WhatsAppConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, key])
+  @@map("whatsapp_session_metadata")
+}
+
+model Contact {
+  id                 String        @id @default(cuid())
+  fullName           String
+  phoneNumber        String
+  e164Phone          String        @unique
+  countryCode        String        @default("91")
+  contactType        ContactType   @default(PARENT)
+  studentId          String?
+  gradeClass         String?
+  section            String?
+  parentRelationship String?       // Father, Mother, Guardian
+  tags               String[]      @default([])
+  notes              String?
+  consentStatus      ConsentStatus @default(OPTED_IN)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  conversations      Conversation[]
+  campaignRecipients CampaignRecipient[]
+  scheduledMessages  ScheduledMessage[]
+  consents           ContactConsent[]
+
+  @@index([e164Phone])
+  @@index([contactType])
+  @@index([gradeClass, section])
+  @@map("contacts")
+}
+
+model ContactConsent {
+  id            String        @id @default(cuid())
+  contactId     String
+  status        ConsentStatus
+  consentSource String        @default("ADMIN_ENTRY") // SMS_OPT_IN, FORM, ADMIN_ENTRY
+  consentedAt   DateTime      @default(now())
+  revokedAt     DateTime?
+  notes         String?
+  contact       Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("contact_consents")
+}
+
+model Conversation {
+  id                  String       @id @default(cuid())
+  remoteJid           String       @unique
+  contactId           String?
+  unreadCount         Int          @default(0)
+  lastMessageAt       DateTime     @default(now())
+  lastMessageSnippet  String?
+  assignedStaffId     String?
+  isResolved          Boolean      @default(false)
+  internalNotes       String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  contact             Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignedStaff       User?        @relation("AssignedStaff", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  messages            Message[]
+
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id                 String           @id @default(cuid())
+  conversationId     String
+  whatsappMessageId  String?          @unique
+  direction          MessageDirection
+  senderJid          String
+  recipientJid       String
+  messageType        MessageType      @default(TEXT)
+  textContent        String?
+  status             MessageStatus    @default(PENDING)
+  errorMessage       String?
+  quotedMessageId    String?
+  reactionEmoji      String?
+  isEdited           Boolean          @default(false)
+  isDeleted          Boolean          @default(false)
+  rawPayload         Json?
+  idempotencyKey     String?          @unique
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  conversation       Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments        MessageAttachment[]
+  statusEvents       MessageStatusEvent[]
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id          String   @id @default(cuid())
+  messageId   String
+  fileName    String
+  fileType    String
+  mimeType    String
+  fileSize    Int
+  storagePath String
+  publicUrl   String?
+  checksum    String?
+  createdAt   DateTime @default(now())
+
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("message_attachments")
+}
+
+model MessageStatusEvent {
+  id        String        @id @default(cuid())
+  messageId String
+  status    MessageStatus
+  timestamp DateTime      @default(now())
+  details   String?
+
+  message   Message       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_status_events")
+}
+
+model MessageTemplate {
+  id          String           @id @default(cuid())
+  name        String
+  code        String           @unique
+  category    TemplateCategory @default(GENERAL)
+  body        String
+  variables   String[]         @default([])
+  isActive    Boolean          @default(true)
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  createdBy   User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  rules       AutomationRule[]
+
+  @@map("message_templates")
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  title           String
+  description     String?
+  category        String         @default("ANNOUNCEMENT")
+  targetFilter    Json?
+  status          CampaignStatus @default(DRAFT)
+  totalRecipients Int            @default(0)
+  sentCount       Int            @default(0)
+  deliveredCount  Int            @default(0)
+  failedCount     Int            @default(0)
+  scheduledAt     DateTime?
+  completedAt     DateTime?
+  createdById     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  createdBy       User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  recipients      CampaignRecipient[]
+
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id            String        @id @default(cuid())
+  campaignId    String
+  contactId     String
+  status        MessageStatus @default(PENDING)
+  messageId     String?
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  failureReason String?
+
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact       Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("campaign_recipients")
+}
+
+model ScheduledMessage {
+  id           String        @id @default(cuid())
+  contactId    String
+  messageType  MessageType   @default(TEXT)
+  payload      Json
+  scheduledFor DateTime
+  status       MessageStatus @default(PENDING)
+  createdById  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  contact      Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledFor, status])
+  @@map("scheduled_messages")
+}
+
+model AutomationRule {
+  id          String                @id @default(cuid())
+  name        String
+  triggerType AutomationTriggerType
+  templateId  String
+  isEnabled   Boolean               @default(true)
+  config      Json?
+  createdById String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  template    MessageTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  events      AutomationEvent[]
+
+  @@map("automation_rules")
+}
+
+model AutomationEvent {
+  id              String         @id @default(cuid())
+  ruleId          String
+  externalEventId String?
+  payload         Json
+  status          String         @default("PROCESSED") // PROCESSED, SKIPPED, FAILED
+  resultMessage   String?
+  idempotencyKey  String?        @unique
+  createdAt       DateTime       @default(now())
+
+  rule            AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@map("automation_events")
+}
+
+model QueuedMessage {
+  id             String           @id @default(cuid())
+  direction      MessageDirection @default(OUTBOUND)
+  recipientPhone String
+  recipientJid   String
+  messageType    MessageType      @default(TEXT)
+  payload        Json
+  status         MessageStatus    @default(PENDING)
+  retryCount     Int              @default(0)
+  maxRetries     Int              @default(3)
+  nextRunAt      DateTime         @default(now())
+  lastError      String?
+  idempotencyKey String?          @unique
+  priority       Int              @default(0) // Higher executes first
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([status, nextRunAt])
+  @@map("queued_messages")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  keyPrefix   String    @unique // e.g. "vw_live_a1b2"
+  keyHash     String
+  scopes      String[]  @default(["messages:write", "contacts:read", "automation:write"])
+  isRevoked   Boolean   @default(false)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@map("api_keys")
+}
+
+model WebhookEndpoint {
+  id             String            @id @default(cuid())
+  url            String
+  secret         String
+  eventTypes     String[]          @default(["message.status", "message.inbound"])
+  isEnabled      Boolean           @default(true)
+  lastDeliveryAt DateTime?
+  createdAt      DateTime          @default(now())
+  deliveries     WebhookDelivery[]
+
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id           String          @id @default(cuid())
+  endpointId   String
+  eventType    String
+  payload      Json
+  signature    String
+  statusCode   Int?
+  responseBody String?
+  attempts     Int             @default(1)
+  isSuccess    Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId])
+  @@map("webhook_deliveries")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userEmail  String?
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
