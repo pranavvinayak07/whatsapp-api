@@ -28,9 +28,10 @@ This guide provides instructions for deploying the Vivegaa WhatsApp Dashboard on
    - `ENCRYPTION_KEY`: Random 32-byte hexadecimal string.
    - `INTERNAL_API_KEY`: Strong key for Vivegaa ERP communication.
    - `PUBLIC_APP_URL`: `https://whatsapp.vivegaaerp.in`.
-4. In Coolify domain settings for the `dashboard` service, set:
+4. In Coolify application settings for the `dashboard` service, set:
+   - Output Type / Resource Type: `Web Application`
    - FQDN: `https://whatsapp.vivegaaerp.in`
-   - Port: `3000`
+   - Port: `4000`
 5. Click **Deploy**. Coolify will pull/build the containers, create Traefik SSL certificates automatically via Let's Encrypt, and start the system.
 
 ---

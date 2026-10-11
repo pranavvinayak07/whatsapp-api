@@ -55,13 +55,13 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 4000
       NEXT_PUBLIC_API_URL: https://whatsapp.vivegaaerp.in/api
       INTERNAL_API_URL: http://api:3001
     depends_on:
       - api
     ports:
-      - "3000:3000"
+      - "4000:4000"
     networks:
       - internal_net
 
@@ -85,7 +85,9 @@ Three volumes must be persisted on the host:
 
 ---
 
-## 3. Coolify HTTPS & Reverse Proxy
-- Domain configured in Coolify: `whatsapp.vivegaaerp.in`
-- Coolify Traefik routing forwards `https://whatsapp.vivegaaerp.in` to the `dashboard` container on port 3000.
+## 3. Coolify HTTPS & Reverse Proxy Settings
+- **Application Type / Output Type:** `Web Application` (Standalone containerized Node/Next.js)
+- **Domain configured in Coolify:** `whatsapp.vivegaaerp.in`
+- **Application Port in Coolify:** `4000`
+- Coolify Traefik routing forwards `https://whatsapp.vivegaaerp.in` to the `dashboard` container on port **4000**.
 - Next.js dashboard proxies `/api/v1/*` internally to `http://api:3001/api/v1/*`. This keeps port 3001 completely private and hidden from the internet.

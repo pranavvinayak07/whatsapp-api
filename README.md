@@ -23,7 +23,7 @@ Deployable on Ubuntu Linux via Docker & Coolify at `https://whatsapp.vivegaaerp.
 
 ```
 Vivegaa WhatsApp Dashboard
-  ├── Frontend: Next.js 14 + Tailwind CSS (Port 3000)
+  ├── Frontend: Next.js 14 + Tailwind CSS (Port 4000)
   ├── Backend: Node.js Express + Baileys Worker (Port 3001)
   ├── Database: PostgreSQL 16 + Prisma ORM
   └── Persistent Storage: Volumes for Baileys MultiFileAuth & Media Library
@@ -50,7 +50,7 @@ Vivegaa WhatsApp Dashboard
    npm run dev
    ```
 
-Frontend will run at `http://localhost:3000`, Backend API at `http://localhost:3001`.
+Frontend will run at `http://localhost:4000`, Backend API at `http://localhost:3001`.
 
 ---
 

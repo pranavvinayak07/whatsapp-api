@@ -18,7 +18,7 @@ The Vivegaa WhatsApp Dashboard is a dedicated, production-grade, self-hosted Wha
 |                                                                                   |
 |   +-----------------------+                 +---------------------------------+   |
 |   |   Next.js Dashboard   |  HTTP / SSE     |        Node.js Backend          |   |
-|   |  Port 3000 (Reverse   | <-------------> |  Port 3001 (Internal / API v1)  |   |
+|   |  Port 4000 (Reverse   | <-------------> |  Port 3001 (Internal / API v1)  |   |
 |   |    Proxy / Public)    |                 |   (Express + TypeScript)        |   |
 |   +-----------------------+                 +---------------------------------+   |
 |                                                              |                    |

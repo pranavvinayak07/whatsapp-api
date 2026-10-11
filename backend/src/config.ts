@@ -13,7 +13,7 @@ const configSchema = z.object({
   INTERNAL_API_KEY: z.string().min(8).default('vw_live_internal_secret_key_2026'),
   BAILEYS_AUTH_DIR: z.string().default(path.resolve(process.cwd(), 'auth')),
   MEDIA_STORAGE_DIR: z.string().default(path.resolve(process.cwd(), 'media')),
-  PUBLIC_APP_URL: z.string().default('http://localhost:3000'),
+  PUBLIC_APP_URL: z.string().default('http://localhost:4000'),
   DEFAULT_COUNTRY_CODE: z.string().default('91'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   MESSAGE_QUEUE_ENABLED: z.coerce.boolean().default(true),

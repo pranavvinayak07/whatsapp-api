@@ -55,13 +55,13 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 4000
       NEXT_PUBLIC_API_URL: /api
       INTERNAL_API_URL: http://api:3001
     depends_on:
       - api
     ports:
-      - "3000:3000"
+      - "4000:4000"
     networks:
       - whatsapp_internal
 
