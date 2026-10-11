@@ -147,12 +147,15 @@ adminApiRouter.post('/inbox/conversations/:id/reply', requireRoles('SUPER_ADMIN'
   const result = await messageSender.sendText({ recipient: phone, text, quotedMessageId });
 
   if (result.success) {
+    const connPhone = whatsappConnection.getStatus().phoneNumber;
+    const senderJid = connPhone ? `${connPhone.replace(/^\+/, '')}@s.whatsapp.net` : 'self';
+
     const created = await db.message.create({
       data: {
         conversationId: conversation.id,
         whatsappMessageId: result.messageId,
         direction: 'OUTBOUND',
-        senderJid: 'self',
+        senderJid,
         recipientJid: conversation.remoteJid,
         textContent: text,
         status: 'SENT',

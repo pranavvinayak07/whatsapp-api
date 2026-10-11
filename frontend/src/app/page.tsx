@@ -166,7 +166,7 @@ export default function DashboardPage() {
         </Link>
 
         <Link
-          href="/automation"
+          href="/api-keys"
           className="group bg-white p-6 rounded-2xl border border-slate-200 hover:border-emerald-500 shadow-xs transition"
         >
           <div className="flex items-center justify-between">
@@ -175,9 +175,9 @@ export default function DashboardPage() {
             </div>
             <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition" />
           </div>
-          <h3 className="mt-4 text-sm font-bold text-slate-900">School ERP Automation</h3>
+          <h3 className="mt-4 text-sm font-bold text-slate-900">REST API Sending Gateway</h3>
           <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-            Event triggers for student absence, bus delays, homework assignments, and overdue fee reminders.
+            Direct high-speed endpoints for Text, Image, Document/PDF, Video, Audio, Location, Contacts & Buttons.
           </p>
         </Link>
 

@@ -166,14 +166,24 @@ async function processIncomingMessage(msg: WAMessage) {
     if (existing) return;
   }
 
+  // Resolve correct sender and recipient JIDs
+  const connectedPhone = whatsappConnection.getStatus().phoneNumber;
+  const socketUserJid = whatsappConnection.getSocket()?.user?.id;
+  const selfJid = connectedPhone
+    ? `${connectedPhone.replace(/^\+/, '')}@s.whatsapp.net`
+    : (socketUserJid ? `${socketUserJid.split(':')[0].split('@')[0]}@s.whatsapp.net` : 'self');
+
+  const senderJid = isFromMe ? selfJid : (msg.key.participant || remoteJid);
+  const recipientJid = isFromMe ? remoteJid : selfJid;
+
   // Create message record
   const createdMsg = await db.message.create({
     data: {
       conversationId: conversation.id,
       whatsappMessageId,
       direction: isFromMe ? 'OUTBOUND' : 'INBOUND',
-      senderJid: msg.key.participant || remoteJid,
-      recipientJid: isFromMe ? remoteJid : 'self',
+      senderJid,
+      recipientJid,
       messageType,
       textContent,
       status: isFromMe ? 'SENT' : 'DELIVERED',

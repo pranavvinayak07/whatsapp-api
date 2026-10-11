@@ -5,6 +5,13 @@ import { History, Search, Check, CheckCheck, Clock, AlertTriangle } from 'lucide
 import { apiRequest } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/utils';
 
+function formatPhone(jid?: string) {
+  if (!jid) return '—';
+  if (jid === 'self') return 'Connected WhatsApp';
+  const clean = jid.split('@')[0].split(':')[0];
+  return clean.startsWith('+') ? clean : `+${clean}`;
+}
+
 export default function MessageHistoryPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,7 +42,7 @@ export default function MessageHistoryPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Message Transmission History</h1>
           <p className="text-xs text-slate-500 mt-1">
-            Complete audit trail of inbound queries and outbound school notifications.
+            Complete audit trail of inbound messages and outbound API transmissions with verified phone numbers.
           </p>
         </div>
 
@@ -63,7 +70,8 @@ export default function MessageHistoryPage() {
               <tr>
                 <th className="p-4">Timestamp</th>
                 <th className="p-4">Direction</th>
-                <th className="p-4">Recipient / Sender</th>
+                <th className="p-4">Sender Phone</th>
+                <th className="p-4">Recipient Phone</th>
                 <th className="p-4">Type</th>
                 <th className="p-4">Content Preview</th>
                 <th className="p-4 text-right">Status</th>
@@ -72,7 +80,7 @@ export default function MessageHistoryPage() {
             <tbody className="divide-y divide-slate-100 font-medium">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                  <td colSpan={7} className="p-8 text-center text-slate-400">
                     No message history records found.
                   </td>
                 </tr>
@@ -92,10 +100,17 @@ export default function MessageHistoryPage() {
                       </span>
                     </td>
                     <td className="p-4 font-mono font-bold text-slate-800">
-                      {m.direction === 'OUTBOUND' ? m.recipientJid.split('@')[0] : m.senderJid.split('@')[0]}
+                      {formatPhone(m.senderJid)}
                     </td>
-                    <td className="p-4 text-slate-600">{m.messageType}</td>
-                    <td className="p-4 text-slate-700 max-w-sm truncate">{m.textContent || '[Attachment / Media]'}</td>
+                    <td className="p-4 font-mono font-bold text-slate-800">
+                      {formatPhone(m.recipientJid)}
+                    </td>
+                    <td className="p-4 text-slate-600">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-mono font-bold text-slate-700">
+                        {m.messageType}
+                      </span>
+                    </td>
+                    <td className="p-4 text-slate-700 max-w-xs truncate">{m.textContent || '[Attachment / Media]'}</td>
                     <td className="p-4 text-right">
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
