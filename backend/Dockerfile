@@ -2,7 +2,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git openssl
 
 COPY package.json ./
 RUN npm install
@@ -22,7 +22,7 @@ ENV NODE_ENV=production
 
 RUN apk add --no-cache ffmpeg
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git openssl
 
 COPY package.json ./
 RUN npm install --omit=dev && npm install --no-save prisma@5.22.0
