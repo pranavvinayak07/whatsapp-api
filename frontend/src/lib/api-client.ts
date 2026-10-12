@@ -20,6 +20,16 @@ export async function apiRequest<T>(
     } catch {
       // ignore json parse error
     }
+
+    // Auto-redirect to login with session expired banner if session expired or invalid
+    if (
+      res.status === 401 &&
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/login'
+    ) {
+      window.location.href = '/login?expired=true';
+    }
+
     throw new Error(errorMsg);
   }
 

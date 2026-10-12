@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'WhatsApp Connections', href: '/connections', icon: QrCode },
   { name: 'API Reference & Keys', href: '/api-keys', icon: KeyRound },
   { name: 'Compose Message', href: '/compose', icon: Send },

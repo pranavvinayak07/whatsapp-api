@@ -37,35 +37,112 @@ const upload = multer({
 });
 
 // ----------------------------------------------------
-// 1. AUTHENTICATION
+import { loginRateLimiter, loginRateLimitMiddleware } from '../middleware/rate-limiter.js';
+
 // ----------------------------------------------------
-adminApiRouter.post('/auth/login', async (req: Request, res: Response) => {
+// 1. PUBLIC AUTHENTICATION & BOOTSTRAP ENDPOINTS
+// ----------------------------------------------------
+
+adminApiRouter.get('/auth/bootstrap/status', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
-    const result = await AuthService.authenticate(email, password);
+    const isNeeded = await AuthService.checkBootstrapStatus();
+    res.json({ bootstrapNeeded: isNeeded });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to check bootstrap status' });
+  }
+});
+
+adminApiRouter.post('/auth/bootstrap', async (req: Request, res: Response) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    const admin = await AuthService.bootstrapAdmin({ email, password, name: name || 'Super Admin' });
+    res.json({
+      success: true,
+      message: 'Super administrator created successfully. Bootstrap is now disabled.',
+      admin,
+    });
+  } catch (err: any) {
+    const status = err.message?.includes('Forbidden') ? 403 : 400;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+adminApiRouter.post('/auth/login', loginRateLimitMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { email, password, rememberMe } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const ipAddress = (req.ip || req.socket.remoteAddress || '').toString();
+    const userAgent = (req.headers['user-agent'] || '').toString();
+    const oldToken = req.cookies?.token;
+
+    let oldSessionId: string | undefined;
+    if (oldToken) {
+      try {
+        const decoded = AuthService.verifyToken(oldToken);
+        oldSessionId = decoded.sessionId;
+      } catch {
+        // ignore expired old token
+      }
+    }
+
+    const result = await AuthService.authenticate(email, password, {
+      ipAddress,
+      userAgent,
+      oldSessionId,
+    });
+
+    loginRateLimiter.recordSuccess(req);
+
+    const maxAge = rememberMe
+      ? 30 * 24 * 60 * 60 * 1000 // 30 days
+      : 7 * 24 * 60 * 60 * 1000;  // 7 days
+
     res.cookie('token', result.token, {
       httpOnly: true,
       secure: config.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge,
+      path: '/',
     });
-    res.json(result);
+
+    res.json({
+      success: true,
+      user: result.user,
+      sessionId: result.sessionId,
+    });
   } catch (err: any) {
-    res.status(401).json({ error: err.message });
+    const failureInfo = loginRateLimiter.recordFailure(req);
+    res.status(401).json({
+      error: err.message || 'Invalid email or password',
+      remainingAttempts: failureInfo.remaining,
+    });
   }
 });
 
-adminApiRouter.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+adminApiRouter.post('/auth/logout', (req: Request, res: Response) => {
+  const token = req.cookies?.token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : undefined);
+  if (token) {
+    AuthService.logout(token);
+  }
+  res.clearCookie('token', { path: '/' });
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// ----------------------------------------------------
+// ALL SUBSEQUENT ADMIN API ROUTES REQUIRE AUTHENTICATION
+// ----------------------------------------------------
+adminApiRouter.use(requireAuth);
+
+adminApiRouter.get('/auth/me', (req: AuthenticatedRequest, res: Response) => {
   res.json({ user: req.user });
 });
-
-adminApiRouter.post('/auth/logout', (req: Request, res: Response) => {
-  res.clearCookie('token');
-  res.json({ success: true });
-});
-
-// Protected routes below
-adminApiRouter.use(requireAuth);
 
 // ----------------------------------------------------
 // 2. WHATSAPP CONNECTION MANAGEMENT

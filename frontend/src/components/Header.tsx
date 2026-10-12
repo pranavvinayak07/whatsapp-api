@@ -34,8 +34,10 @@ export function Header() {
   const handleLogout = async () => {
     try {
       await apiRequest('/api/auth/logout', { method: 'POST' });
-    } catch {}
-    router.push('/login');
+    } catch {
+      // ignore
+    }
+    window.location.href = '/login?logout=true';
   };
 
   if (pathname === '/login') return null;
