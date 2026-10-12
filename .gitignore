@@ -17,7 +17,7 @@ lerna-debug.log*
 .env.production.local
 
 # WhatsApp Baileys Session & Authentication State
-auth/
+/auth/
 backend/auth/
 auth_info_baileys/
 sessions/

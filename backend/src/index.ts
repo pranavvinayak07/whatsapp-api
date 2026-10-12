@@ -13,6 +13,7 @@ import { apiV1Router } from './routes/api-v1.js';
 import { adminApiRouter } from './routes/admin-api.js';
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(
   cors({

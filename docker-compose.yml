@@ -29,7 +29,7 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgresql://whatsapp_user:${POSTGRES_PASSWORD:-vivegaa_secure_db_pass_2026}@postgres:5432/vivegaa_whatsapp?schema=public
-      SESSION_SECRET: ${SESSION_SECRET:-default_secret_please_change_in_env_32chars}
+      SESSION_SECRET: ${SESSION_SECRET:-vivegaa_session_secret_default_32chars}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-default_encryption_key_change_in_env}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-vw_live_internal_secret_key_2026}
       BAILEYS_AUTH_DIR: /app/auth
@@ -58,6 +58,7 @@ services:
       PORT: 4000
       NEXT_PUBLIC_API_URL: /api
       INTERNAL_API_URL: http://api:3001
+      SESSION_SECRET: ${SESSION_SECRET:-vivegaa_session_secret_default_32chars}
     depends_on:
       - api
     ports:

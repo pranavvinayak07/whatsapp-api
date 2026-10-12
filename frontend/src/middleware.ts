@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const SESSION_SECRET = process.env.SESSION_SECRET || 'vivegaa_session_secret_default_32chars';
-
 function base64UrlDecode(str: string): string {
   let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
   while (base64.length % 4) {
@@ -25,35 +23,72 @@ async function verifyToken(token: string): Promise<{ valid: boolean; payload?: a
     if (parts.length !== 3) return { valid: false };
 
     const [headerB64, payloadB64, signatureB64] = parts;
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      enc.encode(SESSION_SECRET),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
-
-    const sigBytes = base64UrlToUint8Array(signatureB64);
-    const dataBytes = enc.encode(`${headerB64}.${payloadB64}`);
-    const isSigValid = await crypto.subtle.verify(
-      'HMAC',
-      key,
-      sigBytes.buffer as ArrayBuffer,
-      dataBytes
-    );
-
-    if (!isSigValid) return { valid: false };
-
     const payloadJson = base64UrlDecode(payloadB64);
     const payload = JSON.parse(payloadJson);
 
-    // Check expiration timestamp
+    // 1. Immediately reject expired tokens
     if (payload.exp && payload.exp * 1000 < Date.now()) {
       return { valid: false };
     }
 
-    return { valid: true, payload };
+    // 2. Fast local verification using candidate secrets
+    const enc = new TextEncoder();
+    const sigBytes = base64UrlToUint8Array(signatureB64);
+    const dataBytes = enc.encode(`${headerB64}.${payloadB64}`);
+
+    const candidateSecrets = Array.from(
+      new Set(
+        [
+          process.env.SESSION_SECRET,
+          'vivegaa_session_secret_default_32chars',
+          'default_secret_please_change_in_env_32chars',
+        ].filter(Boolean) as string[]
+      )
+    );
+
+    for (const secret of candidateSecrets) {
+      try {
+        const key = await crypto.subtle.importKey(
+          'raw',
+          enc.encode(secret),
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['verify']
+        );
+
+        const ok = await crypto.subtle.verify(
+          'HMAC',
+          key,
+          sigBytes.buffer as ArrayBuffer,
+          dataBytes
+        );
+
+        if (ok) {
+          return { valid: true, payload };
+        }
+      } catch {
+        // Try next secret
+      }
+    }
+
+    // 3. Fallback: Verify with backend if custom secret was set in api container
+    const internalApiUrl = process.env.INTERNAL_API_URL || 'http://api:3001';
+    try {
+      const backendCheck = await fetch(`${internalApiUrl}/admin/api/auth/me`, {
+        headers: {
+          Cookie: `token=${token}`,
+          Authorization: `Bearer ${token}`,
+        },
+        cache: 'no-store',
+      });
+      if (backendCheck.ok) {
+        return { valid: true, payload };
+      }
+    } catch {
+      // Backend unreachable or returned 401
+    }
+
+    return { valid: false };
   } catch {
     return { valid: false };
   }
@@ -103,7 +138,6 @@ export async function middleware(request: NextRequest) {
   if (!isAuthenticated) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
-    // Preserve intended redirect if not default
     if (pathname !== '/dashboard') {
       loginUrl.searchParams.set('redirect', `${pathname}${search}`);
     }

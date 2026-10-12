@@ -69,8 +69,13 @@ function LoginFormContent() {
         }),
       });
 
-      // Successful authentication -> redirect to target
-      window.location.href = redirectTarget.startsWith('/') ? redirectTarget : '/dashboard';
+      // Target redirect (guarantee never looping to /login)
+      const target =
+        redirectTarget && redirectTarget !== '/login'
+          ? redirectTarget
+          : '/dashboard';
+
+      window.location.href = target.startsWith('/') ? target : `/${target}`;
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password. Please try again.');
     } finally {
@@ -281,7 +286,7 @@ function LoginFormContent() {
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@vivegaaerp.in"
+                placeholder="admin@vivegaa.edu or admin"
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
               />
             </div>

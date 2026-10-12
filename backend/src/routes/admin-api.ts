@@ -115,6 +115,7 @@ adminApiRouter.post('/auth/login', loginRateLimitMiddleware, async (req: Request
       success: true,
       user: result.user,
       sessionId: result.sessionId,
+      token: result.token,
     });
   } catch (err: any) {
     const failureInfo = loginRateLimiter.recordFailure(req);

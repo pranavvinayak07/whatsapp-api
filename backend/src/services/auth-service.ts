@@ -56,9 +56,25 @@ export class AuthService {
     metadata?: { ipAddress?: string; userAgent?: string; oldSessionId?: string }
   ) {
     const cleanEmail = email.toLowerCase().trim();
-    const user = await db.user.findUnique({
+    let user = await db.user.findUnique({
       where: { email: cleanEmail },
     });
+
+    if (!user) {
+      const candidateEmails = [
+        cleanEmail.includes('@') ? null : `${cleanEmail}@vivegaa.edu`,
+        cleanEmail.includes('@') ? null : `${cleanEmail}@vivegaaerp.in`,
+        cleanEmail.endsWith('@vivegaaerp.in') ? cleanEmail.replace('@vivegaaerp.in', '@vivegaa.edu') : null,
+        cleanEmail.endsWith('@vivegaa.edu') ? cleanEmail.replace('@vivegaa.edu', '@vivegaaerp.in') : null,
+      ].filter(Boolean) as string[];
+
+      for (const candidate of candidateEmails) {
+        user = await db.user.findUnique({
+          where: { email: candidate },
+        });
+        if (user) break;
+      }
+    }
 
     if (!user || !user.isActive) {
       throw new Error('Invalid email or password');
